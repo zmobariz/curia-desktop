@@ -99,36 +99,46 @@ you hold it). Never commit it.
 
 ### Releasing an update
 
-1. Bump `version` in `tauri.conf.json` (and `Cargo.toml`).
-2. Build with the signing key in the environment so artifacts are signed:
-   ```bash
-   export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/curia.key)"
-   export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="<the password you set>"
-   cargo tauri build
-   ```
-   This produces the installer plus a `.sig` file and update artifacts under
-   `src-tauri/target/release/bundle/`.
-3. Publish a GitHub Release and upload the installer, its `.sig`, and a
-   `latest.json` manifest:
-   ```json
-   {
-     "version": "0.1.1",
-     "notes": "What changed",
-     "pub_date": "2026-06-22T12:00:00Z",
-     "platforms": {
-       "windows-x86_64": {
-         "signature": "<contents of the .sig file>",
-         "url": "https://github.com/zmobariz/Curia/releases/download/v0.1.1/Curia_0.1.1_x64-setup.exe"
-       }
-     }
-   }
-   ```
-   Existing installs will pick it up and force-update on their next launch.
+This repo ships a GitHub Actions workflow — [`.github/workflows/desktop-release.yml`](../.github/workflows/desktop-release.yml)
+— that builds on Windows, signs the artifacts, generates `latest.json`, and
+publishes a GitHub Release. **The recommended flow is hands-off:**
 
-> **Tip:** the official `tauri-apps/tauri-action` GitHub Action builds the app,
-> signs it, and generates `latest.json` for you on each tagged release — the
-> recommended way to run this hands-off. Store the private key and its password
-> as repository secrets.
+1. Add the two repository secrets (Settings → Secrets and variables → Actions):
+   `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
+2. Bump `version` in `tauri.conf.json` (and `Cargo.toml`), commit.
+3. Tag and push:
+   ```bash
+   git tag v0.1.1 && git push origin v0.1.1
+   ```
+   The workflow publishes the release; existing installs force-update on next
+   launch. (A manual "Run workflow" build instead uploads a testable installer
+   as a downloadable artifact.)
+
+### Releasing by hand (alternative)
+
+If you'd rather build locally, sign with the key in the environment:
+```bash
+export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/curia.key)"
+export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="<the password you set>"
+cargo tauri build
+```
+This produces the installer plus a `.sig` file under
+`src-tauri/target/release/bundle/`. Publish a GitHub Release and upload the
+installer, its `.sig`, and a `latest.json` manifest:
+```json
+{
+  "version": "0.1.1",
+  "notes": "What changed",
+  "pub_date": "2026-06-22T12:00:00Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "<contents of the .sig file>",
+      "url": "https://github.com/zmobariz/Curia/releases/download/v0.1.1/Curia_0.1.1_x64-setup.exe"
+    }
+  }
+}
+```
+Existing installs will pick it up and force-update on their next launch.
 
 ## Notes & roadmap
 
