@@ -35,10 +35,8 @@
   },
   "bundle": {
     "active": true,
-    "createUpdaterArtifacts": true,
-    "targets": [
-      "nsis"
-    ],
+    "createUpdaterArtifacts": false,
+    "targets": [],
     "publisher": "The Curia maintainers",
     "shortDescription": "Search UK legislation via the i.AI Lex API.",
     "longDescription": "A portable desktop client for searching UK legislation through the UK Government's i.AI Lex API. No admin rights required. Optional AI explanations using your own API key.",

@@ -9,19 +9,24 @@ use settings::Settings;
 use tauri::{AppHandle, Emitter};
 use tauri_plugin_updater::UpdaterExt;
 
-/// Forced auto-update: on launch, check the signed update endpoint. If a newer
-/// version exists, download and install it, then relaunch — the user cannot
-/// skip it. Fails OPEN: if the check errors (e.g. offline), we log and let the
-/// app run, so legal research still works without a connection. To hard-block
-/// instead, surface the error to the UI and refuse to continue.
-async fn check_and_force_update(app: AppHandle) -> tauri_plugin_updater::Result<()> {
+/// Forced auto-update for the PORTABLE build: on launch, check the signed update
+/// endpoint. If a newer version exists, download it (the updater plugin verifies
+/// the minisign signature against the embedded pubkey), swap the running .exe in
+/// place, and relaunch — the user cannot skip it. Tauri's built-in installer only
+/// supports NSIS/MSI, so for a portable single-exe we do the swap ourselves via
+/// `self_replace` instead of `update.install`.
+///
+/// Fails OPEN: if anything errors (offline, 404 before the first release, a
+/// read-only folder), we log and let the app run, so legal research still works.
+async fn check_and_force_update(app: AppHandle) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let updater = app.updater()?;
     if let Some(update) = updater.check().await? {
         let _ = app.emit("update://available", &update.version);
         let progress_app = app.clone();
         let mut downloaded: u64 = 0;
-        update
-            .download_and_install(
+        // Downloads AND verifies the signature, returning the new exe as bytes.
+        let bytes = update
+            .download(
                 move |chunk, total| {
                     downloaded += chunk as u64;
                     let _ = progress_app.emit("update://progress", (downloaded, total));
@@ -29,8 +34,20 @@ async fn check_and_force_update(app: AppHandle) -> tauri_plugin_updater::Result<
                 move || {},
             )
             .await?;
-        // Installed — relaunch into the new version.
-        app.restart();
+
+        // Write the verified bytes to a temp file, then atomically replace the
+        // currently running portable exe with it (handles the Windows
+        // can't-overwrite-a-running-exe rename dance).
+        let mut tmp = std::env::temp_dir();
+        tmp.push("curia-update.exe");
+        std::fs::write(&tmp, &bytes)?;
+        self_replace::self_replace(&tmp)?;
+        let _ = std::fs::remove_file(&tmp);
+
+        // Relaunch the now-updated exe and exit this (old) process.
+        let current = std::env::current_exe()?;
+        std::process::Command::new(current).spawn()?;
+        app.exit(0);
     }
     Ok(())
 }
@@ -103,12 +120,17 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let handle = app.handle().clone();
+            // Only self-update release builds — a debug build would try to
+            // replace the dev exe under target/debug.
+            #[cfg(not(debug_assertions))]
             tauri::async_runtime::spawn(async move {
                 if let Err(e) = check_and_force_update(handle.clone()).await {
                     eprintln!("auto-update check failed (continuing): {e}");
                     let _ = handle.emit("update://error", e.to_string());
                 }
             });
+            #[cfg(debug_assertions)]
+            let _ = handle; // updater disabled in dev builds
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

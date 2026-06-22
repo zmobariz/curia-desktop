@@ -1,12 +1,18 @@
-# Builds Curia Desktop on Windows, signs it, and publishes a GitHub Release with
-# the installer + latest.json that existing installs auto-update from. Tag a
-# version (git tag v0.1.1 && git push --tags) to release; a manual run uploads a
-# testable installer artifact.
+# Builds Curia Desktop as a PORTABLE single .exe on Windows, signs it with the
+# updater key, and publishes a GitHub Release with the exe + its .sig +
+# latest.json that existing installs self-update from. Tag a version
+# (git tag v0.1.1 && git push origin v0.1.1) to release; a manual run uploads a
+# testable portable .exe as an artifact (no release published).
 #
-# Required repo secrets (Settings → Secrets and variables → Actions):
+# Required repo secrets (Settings -> Secrets and variables -> Actions):
 #   TAURI_SIGNING_PRIVATE_KEY           = contents of your ~/.tauri/curia.key
 #   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  = the password you set when generating it
-# And paste the matching PUBLIC key into src-tauri/tauri.conf.json → plugins.updater.pubkey
+# And paste the matching PUBLIC key into src-tauri/tauri.conf.json -> plugins.updater.pubkey
+#
+# INVARIANT: the git tag, src-tauri/tauri.conf.json "version", and latest.json
+# "version" MUST all match. The exe reports the tauri.conf.json version at
+# runtime; if latest.json claims a higher version than the exe actually is, the
+# forced updater self-updates forever. The "Verify version" step enforces this.
 
 name: Release
 
@@ -23,32 +29,99 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Verify tag matches tauri.conf.json version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME#v}"
+          CONF=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          echo "tag=$TAG  tauri.conf.json=$CONF"
+          if [ "$TAG" != "$CONF" ]; then
+            echo "::error::Tag v$TAG does not match tauri.conf.json version $CONF. Bump the config and re-tag (a mismatch causes a forced update loop)."
+            exit 1
+          fi
+
       - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@stable
+
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-      - name: Build, sign & release
-        uses: tauri-apps/tauri-action@v0
+
+      - name: Install Tauri CLI
+        run: npm install -g @tauri-apps/cli@2
+
+      - name: Build portable exe
+        run: tauri build --no-bundle
+
+      - name: Sign exe and generate latest.json
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp "src-tauri/target/release/curia-desktop.exe" "dist/Curia.exe"
+
+          # Signs dist/Curia.exe -> dist/Curia.exe.sig (tauri/minisign format).
+          tauri signer sign "dist/Curia.exe"
+          SIG=$(cat "dist/Curia.exe.sig")
+
+          VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          case "${GITHUB_REF_NAME}" in
+            v*) ASSET_TAG="${GITHUB_REF_NAME}" ;;
+            *)  ASSET_TAG="v${VERSION}" ;;
+          esac
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${ASSET_TAG}/Curia.exe"
+          PUB_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          # Export so the node script below can read them (avoids quoting the
+          # base64 signature into the JSON by hand).
+          export VERSION SIG URL PUB_DATE
+          node -e '
+            const fs = require("fs");
+            const out = {
+              version: process.env.VERSION,
+              notes: "Curia " + process.env.VERSION,
+              pub_date: process.env.PUB_DATE,
+              platforms: {
+                "windows-x86_64": { signature: process.env.SIG, url: process.env.URL }
+              }
+            };
+            fs.writeFileSync("dist/latest.json", JSON.stringify(out, null, 2));
+          '
+          echo "--- latest.json ---"
+          cat dist/latest.json
+
+      - name: Publish release (tags only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
         with:
-          projectPath: "."
-          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
-          releaseName: ${{ startsWith(github.ref, 'refs/tags/') && format('Curia {0}', github.ref_name) || '' }}
-          releaseBody: "Curia desktop. Existing installs force-update to this version on next launch."
-          releaseDraft: false
+          name: Curia ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          body: "Curia desktop (portable). Existing installs self-update to this version on next launch. Requires the Microsoft Edge WebView2 runtime (preinstalled on Windows 11)."
+          draft: false
           prerelease: false
-          includeUpdaterJson: true
-      - name: Upload installer artifact (manual runs)
+          files: |
+            dist/Curia.exe
+            dist/Curia.exe.sig
+            dist/latest.json
+
+      - name: Upload portable artifact (manual runs)
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         uses: actions/upload-artifact@v4
         with:
           name: curia-desktop-windows
           path: |
-            src-tauri/target/release/bundle/nsis/*-setup.exe
-            src-tauri/target/release/bundle/nsis/*.sig
-          if-no-files-found: warn
+            dist/Curia.exe
+            dist/Curia.exe.sig
+            dist/latest.json
+          if-no-files-found: error
