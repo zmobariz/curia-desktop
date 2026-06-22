@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Curia — UK legislation research</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="mark"></span>
+        <div>
+          <h1>Curia</h1>
+          <p class="tagline">UK legislation research · powered by the i.AI <strong>Lex</strong> API</p>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <span id="status-pill" class="pill pill-muted" title="Lex API status">checking…</span>
+        <button id="open-settings" class="btn btn-ghost" type="button">Settings</button>
+      </div>
+    </header>
+
+    <div class="disclaimer">
+      Research aid, not legal advice. Always open and verify the linked primary source.
+      Don’t enter client-identifying or sensitive personal data.
+    </div>
+
+    <main class="content">
+      <!-- SEARCH VIEW -->
+      <section id="view-search">
+        <form id="search-form" class="search">
+          <input id="q" type="text" placeholder="Search UK legislation (e.g. “right to rent immigration”, “asylum support”)" autocomplete="off" />
+          <button class="btn btn-primary" type="submit">Search</button>
+        </form>
+
+        <div class="filters">
+          <label>Type
+            <select id="f-type">
+              <option value="">All</option>
+              <option value="ukpga">UK Public General Acts</option>
+              <option value="uksi">UK Statutory Instruments</option>
+              <option value="asp">Acts of the Scottish Parliament</option>
+              <option value="asc">Acts of Senedd Cymru</option>
+              <option value="nia">Northern Ireland Acts</option>
+            </select>
+          </label>
+          <label>Year from <input id="f-from" type="number" min="1267" max="2100" placeholder="e.g. 1999" /></label>
+          <label>Year to <input id="f-to" type="number" min="1267" max="2100" placeholder="e.g. 2025" /></label>
+          <label>Results
+            <select id="f-limit">
+              <option>10</option><option>20</option><option>50</option>
+            </select>
+          </label>
+        </div>
+
+        <div id="search-meta" class="meta" hidden></div>
+        <div id="results" class="results"></div>
+        <div id="results-foot" class="results-foot" hidden>
+          <button id="load-more" class="btn btn-ghost" type="button">Load more</button>
+        </div>
+      </section>
+
+      <!-- SETTINGS VIEW -->
+      <section id="view-settings" hidden>
+        <h2>Settings</h2>
+
+        <fieldset>
+          <legend>Lex API</legend>
+          <label class="row">Lex base URL
+            <input id="s-lex-url" type="text" />
+          </label>
+          <label class="row">Contact (optional, sent in User-Agent for polite use)
+            <input id="s-contact" type="text" placeholder="you@example.org" />
+          </label>
+        </fieldset>
+
+        <fieldset>
+          <legend>AI “Explain” (optional — bring your own key)</legend>
+          <label class="check"><input id="s-llm-enabled" type="checkbox" /> Enable AI explanations</label>
+          <p class="hint">
+            Curia ships no AI and needs no subscription. To use “Explain”, paste your own provider key.
+            Keys are stored only on this PC. For a no-cost option, run a local model with
+            <a href="#" data-ext="https://ollama.com">Ollama</a> (installs without admin) and choose “Ollama”.
+          </p>
+          <label class="row">Provider
+            <select id="s-provider">
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Anthropic (Claude)</option>
+              <option value="openai_compatible">OpenAI-compatible (OpenRouter, Groq, z.ai…)</option>
+              <option value="ollama">Ollama (local, free)</option>
+            </select>
+          </label>
+          <label class="row" id="row-baseurl" hidden>Base URL
+            <input id="s-base-url" type="text" placeholder="https://openrouter.ai/api/v1" />
+          </label>
+          <label class="row">Model
+            <input id="s-model" type="text" placeholder="e.g. gpt-4o-mini / claude-opus-4-8 / llama3.1" />
+          </label>
+          <label class="row" id="row-apikey">API key
+            <input id="s-api-key" type="password" placeholder="sk-…" />
+          </label>
+        </fieldset>
+
+        <div class="settings-actions">
+          <button id="save-settings" class="btn btn-primary" type="button">Save</button>
+          <button id="close-settings" class="btn btn-ghost" type="button">Back to search</button>
+          <span id="settings-saved" class="saved" hidden>Saved ✓</span>
+        </div>
+      </section>
+    </main>
+
+    <!-- Slide-over panel for full text / explanations -->
+    <aside id="panel" class="panel" hidden>
+      <div class="panel-head">
+        <h3 id="panel-title">Details</h3>
+        <button id="panel-close" class="btn btn-ghost" type="button">Close</button>
+      </div>
+      <div id="panel-body" class="panel-body"></div>
+    </aside>
+    <div id="scrim" class="scrim" hidden></div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

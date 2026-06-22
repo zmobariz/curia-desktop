@@ -1,0 +1,28 @@
+[package]
+name = "curia-desktop"
+version = "0.1.0"
+description = "Curia — a portable desktop client for the UK i.AI Lex legislation API"
+authors = ["The Curia maintainers"]
+edition = "2021"
+rust-version = "1.77"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+open = "5"
+
+[features]
+# By default Tauri uses a custom protocol for assets; nothing extra needed here.
+default = []
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
