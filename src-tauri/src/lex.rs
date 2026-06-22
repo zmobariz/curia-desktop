@@ -106,6 +106,48 @@ pub async fn health(base_url: &str, contact: &str) -> Result<Value, String> {
     parse(resp).await
 }
 
+/// Amendments to (or by) a piece of legislation. `POST /amendment/search`
+/// returns a JSON array (possibly empty).
+pub async fn amendments(
+    base_url: &str,
+    contact: &str,
+    legislation_id: &str,
+    search_amended: bool,
+) -> Result<Value, String> {
+    let url = format!("{}/amendment/search", base(base_url));
+    let body = serde_json::json!({
+        "legislation_id": legislation_id,
+        "search_amended": search_amended,
+        "size": 200,
+    });
+    let resp = client(contact)?
+        .post(&url)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    parse_allow_404(resp).await
+}
+
+/// All explanatory notes for a piece of legislation.
+/// `POST /explanatory_note/legislation/lookup` returns a JSON array, or 404 when
+/// none exist — which we treat as an empty list rather than an error.
+pub async fn explanatory_notes(
+    base_url: &str,
+    contact: &str,
+    legislation_id: &str,
+) -> Result<Value, String> {
+    let url = format!("{}/explanatory_note/legislation/lookup", base(base_url));
+    let body = serde_json::json!({ "legislation_id": legislation_id, "limit": 500 });
+    let resp = client(contact)?
+        .post(&url)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    parse_allow_404(resp).await
+}
+
 async fn parse(resp: reqwest::Response) -> Result<Value, String> {
     let status = resp.status();
     let text = resp.text().await.map_err(|e| e.to_string())?;
@@ -123,6 +165,15 @@ async fn parse(resp: reqwest::Response) -> Result<Value, String> {
         ));
     }
     serde_json::from_str(&text).map_err(|e| format!("Invalid JSON from Lex: {}", e))
+}
+
+/// Like `parse`, but a 404 (Lex's "none found" for some endpoints) becomes an
+/// empty JSON array instead of an error.
+async fn parse_allow_404(resp: reqwest::Response) -> Result<Value, String> {
+    if resp.status().as_u16() == 404 {
+        return Ok(Value::Array(vec![]));
+    }
+    parse(resp).await
 }
 
 fn truncate(s: &str, n: usize) -> String {

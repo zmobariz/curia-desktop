@@ -138,6 +138,8 @@ function renderResults(results, isFirst) {
       <div class="actions">
         <button class="btn btn-link" data-open="${esc(legUrl(id))}">Open on legislation.gov.uk ↗</button>
         <button class="btn btn-ghost" data-fulltext="${esc(id)}">Full text</button>
+        <button class="btn btn-ghost" data-amend="${esc(id)}" data-title="${esc(r.title)}">Amendments</button>
+        <button class="btn btn-ghost" data-notes="${esc(id)}" data-title="${esc(r.title)}">Explanatory notes</button>
         <button class="btn btn-ghost" data-explain="${esc(id)}" data-title="${esc(r.title)}">Explain with AI</button>
       </div>`;
     wrap.appendChild(card);
@@ -156,6 +158,55 @@ async function showFullText(id) {
       <pre>${esc(text)}</pre>`);
   } catch (e) {
     openPanel("Full text", `<div class="error">${esc(e)}</div>`);
+  }
+}
+
+async function showAmendments(id, title) {
+  openPanel(`Amendments · ${title}`, '<div class="spinner">Fetching amendments from Lex…</div>');
+  try {
+    const list = await invoke("lex_amendments", { legislationId: id, searchAmended: true });
+    const items = Array.isArray(list) ? list : [];
+    if (!items.length) {
+      openPanel(`Amendments · ${title}`, '<div class="empty">No recorded amendments to this legislation in Lex.</div>');
+      return;
+    }
+    const rows = items.map((a) => {
+      const affecting = [a.affecting_legislation, a.affecting_year, a.affecting_number].filter(Boolean).join(" ");
+      const url = a.affecting_provision_url || a.affecting_url;
+      return `<div class="card">
+        <div class="sub">${a.type_of_effect ? `<span class="badge">${esc(a.type_of_effect)}</span>` : ""}
+          ${a.changed_provision ? `<span class="badge">affects ${esc(a.changed_provision)}</span>` : ""}</div>
+        ${affecting ? `<p class="desc">By: ${esc(affecting)}${a.affecting_provision ? " — " + esc(a.affecting_provision) : ""}</p>` : ""}
+        ${a.ai_explanation ? `<p class="desc">${esc(a.ai_explanation)}</p>` : ""}
+        ${url ? `<button class="btn btn-link" data-open="${esc(url)}">View amending provision ↗</button>` : ""}
+      </div>`;
+    }).join("");
+    openPanel(`Amendments · ${title} (${items.length})`, rows);
+  } catch (e) {
+    openPanel("Amendments", `<div class="error">${esc(e)}</div>`);
+  }
+}
+
+async function showNotes(id, title) {
+  openPanel(`Explanatory notes · ${title}`, '<div class="spinner">Fetching explanatory notes from Lex…</div>');
+  try {
+    const list = await invoke("lex_explanatory_notes", { legislationId: id });
+    const items = Array.isArray(list) ? list : [];
+    if (!items.length) {
+      openPanel(`Explanatory notes · ${title}`, '<div class="empty">No explanatory notes for this legislation in Lex.</div>');
+      return;
+    }
+    items.sort((a, b) => (a.order || 0) - (b.order || 0));
+    const rows = items.map((n) => {
+      const heading = Array.isArray(n.route) && n.route.length ? n.route.join(" › ") : (n.note_type || "Note");
+      return `<div class="card">
+        <div class="sub"><span class="badge">${esc(heading)}</span>${n.section_number != null ? `<span class="badge">s.${esc(n.section_number)}</span>` : ""}</div>
+        <pre>${esc(n.text || "")}</pre>
+      </div>`;
+    }).join("");
+    openPanel(`Explanatory notes · ${title} (${items.length})`, rows);
+  } catch (e) {
+    openPanel("Explanatory notes", `<div class="error">${esc(e)}</div>`);
   }
 }
 
@@ -242,11 +293,13 @@ async function checkHealth() {
 
 // ---------- wiring ----------
 document.addEventListener("click", (ev) => {
-  const t = ev.target.closest("[data-open],[data-ext],[data-fulltext],[data-explain]");
+  const t = ev.target.closest("[data-open],[data-ext],[data-fulltext],[data-amend],[data-notes],[data-explain]");
   if (!t) return;
   if (t.dataset.open) { ev.preventDefault(); invoke("open_url", { url: t.dataset.open }); }
   else if (t.dataset.ext) { ev.preventDefault(); invoke("open_url", { url: t.dataset.ext }); }
   else if (t.dataset.fulltext) { showFullText(t.dataset.fulltext); }
+  else if (t.dataset.amend) { showAmendments(t.dataset.amend, t.dataset.title || ""); }
+  else if (t.dataset.notes) { showNotes(t.dataset.notes, t.dataset.title || ""); }
   else if (t.dataset.explain) { explain(t.dataset.explain, t.dataset.title || ""); }
 });
 

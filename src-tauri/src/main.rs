@@ -68,6 +68,25 @@ async fn lex_health(app: AppHandle) -> Result<serde_json::Value, String> {
 }
 
 #[tauri::command]
+async fn lex_amendments(
+    app: AppHandle,
+    legislation_id: String,
+    search_amended: bool,
+) -> Result<serde_json::Value, String> {
+    let s = settings::load(&app);
+    lex::amendments(&s.lex_base_url, &s.contact, &legislation_id, search_amended).await
+}
+
+#[tauri::command]
+async fn lex_explanatory_notes(
+    app: AppHandle,
+    legislation_id: String,
+) -> Result<serde_json::Value, String> {
+    let s = settings::load(&app);
+    lex::explanatory_notes(&s.lex_base_url, &s.contact, &legislation_id).await
+}
+
+#[tauri::command]
 async fn llm_explain(app: AppHandle, question: String, context: String) -> Result<String, String> {
     let s = settings::load(&app);
     llm::explain(&s, &question, &context).await
@@ -98,6 +117,8 @@ fn main() {
             lex_search,
             lex_full_text,
             lex_health,
+            lex_amendments,
+            lex_explanatory_notes,
             llm_explain,
             open_url
         ])
