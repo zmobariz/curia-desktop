@@ -6,7 +6,34 @@ mod llm;
 mod settings;
 
 use settings::Settings;
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
+use tauri_plugin_updater::UpdaterExt;
+
+/// Forced auto-update: on launch, check the signed update endpoint. If a newer
+/// version exists, download and install it, then relaunch — the user cannot
+/// skip it. Fails OPEN: if the check errors (e.g. offline), we log and let the
+/// app run, so legal research still works without a connection. To hard-block
+/// instead, surface the error to the UI and refuse to continue.
+async fn check_and_force_update(app: AppHandle) -> tauri_plugin_updater::Result<()> {
+    let updater = app.updater()?;
+    if let Some(update) = updater.check().await? {
+        let _ = app.emit("update://available", &update.version);
+        let progress_app = app.clone();
+        let mut downloaded: u64 = 0;
+        update
+            .download_and_install(
+                move |chunk, total| {
+                    downloaded += chunk as u64;
+                    let _ = progress_app.emit("update://progress", (downloaded, total));
+                },
+                move || {},
+            )
+            .await?;
+        // Installed — relaunch into the new version.
+        app.restart();
+    }
+    Ok(())
+}
 
 #[tauri::command]
 fn get_settings(app: AppHandle) -> Settings {
@@ -54,6 +81,17 @@ fn open_url(url: String) -> Result<(), String> {
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .setup(|app| {
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = check_and_force_update(handle.clone()).await {
+                    eprintln!("auto-update check failed (continuing): {e}");
+                    let _ = handle.emit("update://error", e.to_string());
+                }
+            });
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             get_settings,
             save_settings,

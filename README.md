@@ -67,6 +67,69 @@ Outputs:
 
 To develop with live reload: `cargo tauri dev`.
 
+## Forced auto-update
+
+The app uses Tauri's **signed updater**. On every launch it checks the release
+endpoint; if a newer version exists it **downloads, installs and relaunches
+automatically — the user gets no "skip" or "later" option**. A full-screen
+overlay blocks use while the update installs.
+
+It **fails open**: if the check can't reach the network (or isn't configured
+yet), the error is logged and the app continues, so research still works
+offline. To make updates *mandatory even offline* (hard-block), change
+`check_and_force_update` in `src/main.rs` to surface the error to the UI and
+refuse to continue instead of returning `Ok(())`.
+
+### One-time setup (required before updates work)
+
+Updates must be cryptographically signed; the **private key stays secret** (only
+you hold it). Never commit it.
+
+1. **Generate a keypair** (needs the Tauri CLI):
+   ```bash
+   cargo tauri signer generate -w ~/.tauri/curia.key
+   ```
+   This prints a **public key** and writes the private key to `~/.tauri/curia.key`.
+
+2. **Add the public key** to `src-tauri/tauri.conf.json` → `plugins.updater.pubkey`,
+   replacing `REPLACE_WITH_YOUR_TAURI_UPDATER_PUBLIC_KEY`.
+
+3. **Confirm the endpoint** in the same block points at where you publish releases
+   (default: this repo's GitHub Releases `latest.json`).
+
+### Releasing an update
+
+1. Bump `version` in `tauri.conf.json` (and `Cargo.toml`).
+2. Build with the signing key in the environment so artifacts are signed:
+   ```bash
+   export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/curia.key)"
+   export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="<the password you set>"
+   cargo tauri build
+   ```
+   This produces the installer plus a `.sig` file and update artifacts under
+   `src-tauri/target/release/bundle/`.
+3. Publish a GitHub Release and upload the installer, its `.sig`, and a
+   `latest.json` manifest:
+   ```json
+   {
+     "version": "0.1.1",
+     "notes": "What changed",
+     "pub_date": "2026-06-22T12:00:00Z",
+     "platforms": {
+       "windows-x86_64": {
+         "signature": "<contents of the .sig file>",
+         "url": "https://github.com/zmobariz/Curia/releases/download/v0.1.1/Curia_0.1.1_x64-setup.exe"
+       }
+     }
+   }
+   ```
+   Existing installs will pick it up and force-update on their next launch.
+
+> **Tip:** the official `tauri-apps/tauri-action` GitHub Action builds the app,
+> signs it, and generates `latest.json` for you on each tagged release — the
+> recommended way to run this hands-off. Store the private key and its password
+> as repository secrets.
+
 ## Notes & roadmap
 
 - API keys currently sit in the per-user settings file in plain text — fine for a

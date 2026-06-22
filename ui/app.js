@@ -1,6 +1,33 @@
 "use strict";
 
 const invoke = window.__TAURI__.core.invoke;
+const listen = window.__TAURI__.event.listen;
+
+// ---------- forced auto-update ----------
+// Backend checks on launch and installs+relaunches automatically. We just show
+// a blocking overlay so the app can't be used mid-update.
+function wireUpdater() {
+  const overlay = $("update-overlay");
+  const bar = $("update-bar");
+  const pct = $("update-pct");
+  const msg = $("update-msg");
+  listen("update://available", (e) => {
+    overlay.hidden = false;
+    msg.textContent = `Installing required update${e.payload ? " " + e.payload : ""}. The app will restart automatically.`;
+  });
+  listen("update://progress", (e) => {
+    overlay.hidden = false;
+    const [done, total] = e.payload || [];
+    if (total) {
+      const p = Math.min(100, Math.round((done / total) * 100));
+      bar.style.width = p + "%";
+      pct.textContent = p + "%";
+    } else {
+      pct.textContent = "Downloading…";
+    }
+  });
+  // update://error is non-fatal (offline / not configured) — stay silent and let the app run.
+}
 
 const TYPE_NAMES = {
   ukpga: "UK Public General Act",
@@ -232,6 +259,8 @@ window.addEventListener("DOMContentLoaded", async () => {
   $("s-provider").addEventListener("change", syncProviderRows);
   $("panel-close").addEventListener("click", closePanel);
   $("scrim").addEventListener("click", closePanel);
+
+  wireUpdater();
 
   try {
     state.settings = await invoke("get_settings");

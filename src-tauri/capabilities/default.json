@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "Core capabilities for the main window. Network calls are made from Rust commands, so no HTTP plugin permissions are needed here.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "updater:default"]
 }

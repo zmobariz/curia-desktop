@@ -120,6 +120,17 @@
     </aside>
     <div id="scrim" class="scrim" hidden></div>
 
+    <!-- Forced-update overlay: blocks the app while a mandatory update installs -->
+    <div id="update-overlay" class="update-overlay" hidden>
+      <div class="update-box">
+        <span class="mark"></span>
+        <h2>Updating Curia</h2>
+        <p id="update-msg">A required update is being installed. The app will restart automatically.</p>
+        <div class="progress"><div id="update-bar" class="progress-bar"></div></div>
+        <p id="update-pct" class="update-pct"></p>
+      </div>
+    </div>
+
     <script src="app.js"></script>
   </body>
 </html>
