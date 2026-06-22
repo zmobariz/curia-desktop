@@ -33,7 +33,6 @@ on legislation; case-law search remains available via the repo's `caselaw-mcp`.
 ## Layout
 
 ```
-desktop/
   ui/                 static frontend (HTML/CSS/JS — no bundler, no Node needed)
   src-tauri/          Rust (Tauri v2) backend
     src/lex.rs        Lex API client
@@ -99,7 +98,7 @@ you hold it). Never commit it.
 
 ### Releasing an update
 
-This repo ships a GitHub Actions workflow — [`.github/workflows/desktop-release.yml`](../.github/workflows/desktop-release.yml)
+This repo ships a GitHub Actions workflow — [`.github/workflows/release.yml`](.github/workflows/release.yml)
 — that builds on Windows, signs the artifacts, generates `latest.json`, and
 publishes a GitHub Release. **The recommended flow is hands-off:**
 
@@ -153,5 +152,5 @@ Existing installs will pick it up and force-update on their next launch.
 
 ## Licence
 
-Part of Curia — see the repository's [`LICENSE`](../LICENSE) and
-[`LICENSING.md`](../LICENSING.md). Free for everyone while Lex is in beta.
+Part of Curia — see the repository's [`LICENSE`](LICENSE) and
+[`LICENSING.md`](LICENSING.md). Free for everyone while Lex is in beta.

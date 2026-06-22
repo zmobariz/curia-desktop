@@ -11,7 +11,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Curia — UK legislation research",
+        "title": "Curia \u2014 UK legislation research",
         "width": 1120,
         "height": 820,
         "minWidth": 720,
@@ -26,7 +26,7 @@
     "updater": {
       "pubkey": "REPLACE_WITH_YOUR_TAURI_UPDATER_PUBLIC_KEY",
       "endpoints": [
-        "https://github.com/zmobariz/Curia/releases/latest/download/latest.json"
+        "https://github.com/zmobariz/curia-desktop/releases/latest/download/latest.json"
       ],
       "windows": {
         "installMode": "passive"
@@ -36,7 +36,9 @@
   "bundle": {
     "active": true,
     "createUpdaterArtifacts": true,
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "publisher": "The Curia maintainers",
     "shortDescription": "Search UK legislation via the i.AI Lex API.",
     "longDescription": "A portable desktop client for searching UK legislation through the UK Government's i.AI Lex API. No admin rights required. Optional AI explanations using your own API key.",

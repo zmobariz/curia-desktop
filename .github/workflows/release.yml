@@ -1,0 +1,54 @@
+# Builds Curia Desktop on Windows, signs it, and publishes a GitHub Release with
+# the installer + latest.json that existing installs auto-update from. Tag a
+# version (git tag v0.1.1 && git push --tags) to release; a manual run uploads a
+# testable installer artifact.
+#
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#   TAURI_SIGNING_PRIVATE_KEY           = contents of your ~/.tauri/curia.key
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  = the password you set when generating it
+# And paste the matching PUBLIC key into src-tauri/tauri.conf.json → plugins.updater.pubkey
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: Build, sign & release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: "."
+          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
+          releaseName: ${{ startsWith(github.ref, 'refs/tags/') && format('Curia {0}', github.ref_name) || '' }}
+          releaseBody: "Curia desktop. Existing installs force-update to this version on next launch."
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
+      - name: Upload installer artifact (manual runs)
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: curia-desktop-windows
+          path: |
+            src-tauri/target/release/bundle/nsis/*-setup.exe
+            src-tauri/target/release/bundle/nsis/*.sig
+          if-no-files-found: warn
