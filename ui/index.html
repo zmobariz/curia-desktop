@@ -80,7 +80,7 @@
           <label class="check"><input id="s-llm-enabled" type="checkbox" /> Enable AI explanations</label>
           <p class="hint">
             Curia ships no AI and needs no subscription. To use “Explain”, paste your own provider key.
-            Keys are stored only on this PC. For a no-cost option, run a local model with
+            Keys are stored only on this PC, in Windows Credential Manager. For a no-cost option, run a local model with
             <a href="#" data-ext="https://ollama.com">Ollama</a> (installs without admin) and choose “Ollama”.
           </p>
           <label class="row">Provider
@@ -98,8 +98,10 @@
             <input id="s-model" type="text" placeholder="e.g. gpt-4o-mini / claude-opus-4-8 / llama3.1" />
           </label>
           <label class="row" id="row-apikey">API key
-            <input id="s-api-key" type="password" placeholder="sk-…" />
+            <input id="s-api-key" type="password" placeholder="sk-…" autocomplete="off" />
           </label>
+          <p class="hint">Your key is stored in Windows Credential Manager, not in a file.
+            <button id="clear-api-key" class="btn btn-ghost" type="button" hidden>Remove saved key</button></p>
         </fieldset>
 
         <div class="settings-actions">

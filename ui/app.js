@@ -26,7 +26,11 @@ function wireUpdater() {
       pct.textContent = "Downloading…";
     }
   });
-  // update://error is non-fatal (offline / not configured) — stay silent and let the app run.
+  // update://error is non-fatal (offline, no release yet, bad signature, failed
+  // file swap). Always dismiss the blocking overlay so the app stays usable.
+  listen("update://error", () => {
+    overlay.hidden = true;
+  });
 }
 
 const TYPE_NAMES = {
@@ -245,7 +249,11 @@ function fillSettings(s) {
   $("s-provider").value = s.provider || "openai";
   $("s-base-url").value = s.base_url || "";
   $("s-model").value = s.model || "";
-  $("s-api-key").value = s.api_key || "";
+  // The key itself never comes back from the backend (it lives in Windows
+  // Credential Manager); we only learn whether one is saved.
+  $("s-api-key").value = "";
+  $("s-api-key").placeholder = s.api_key_set ? "Saved — leave blank to keep" : "sk-…";
+  $("clear-api-key").hidden = !s.api_key_set;
   syncProviderRows();
 }
 function syncProviderRows() {
@@ -261,15 +269,37 @@ async function saveSettings() {
     provider: $("s-provider").value,
     base_url: $("s-base-url").value.trim(),
     model: $("s-model").value.trim(),
-    api_key: $("s-api-key").value,
+    // Blank means "keep the saved key".
+    api_key: $("s-api-key").value.trim(),
   };
-  await invoke("save_settings", { settings });
-  state.settings = settings;
   const saved = $("settings-saved");
+  try {
+    await invoke("save_settings", { settings });
+    state.settings = await invoke("get_settings");
+    fillSettings(state.settings);
+    saved.textContent = "Saved ✓";
+    saved.classList.remove("saved-error");
+  } catch (e) {
+    saved.textContent = String(e);
+    saved.classList.add("saved-error");
+  }
   saved.hidden = false;
-  setTimeout(() => (saved.hidden = true), 1500);
+  setTimeout(() => (saved.hidden = true), 4000);
   checkHealth();
 }
+async function clearApiKey() {
+  try {
+    await invoke("clear_api_key");
+    state.settings = await invoke("get_settings");
+    fillSettings(state.settings);
+  } catch (e) {
+    const saved = $("settings-saved");
+    saved.textContent = String(e);
+    saved.classList.add("saved-error");
+    saved.hidden = false;
+  }
+}
+
 function showView(which) {
   $("view-search").hidden = which !== "search";
   $("view-settings").hidden = which !== "settings";
@@ -309,6 +339,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   $("open-settings").addEventListener("click", () => showView("settings"));
   $("close-settings").addEventListener("click", () => showView("search"));
   $("save-settings").addEventListener("click", saveSettings);
+  $("clear-api-key").addEventListener("click", clearApiKey);
   $("s-provider").addEventListener("change", syncProviderRows);
   $("panel-close").addEventListener("click", closePanel);
   $("scrim").addEventListener("click", closePanel);

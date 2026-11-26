@@ -75,6 +75,9 @@ pub async fn explain(s: &Settings, question: &str, context: &str) -> Result<Stri
         }
         other => return Err(format!("Unknown provider: {}", other)),
     };
+    if !crate::settings::is_safe_endpoint(&base) {
+        return Err("Refusing to send your prompt and API key over plain http to a non-local host. Use an https:// Base URL.".into());
+    }
     if s.provider != "ollama" && s.api_key.trim().is_empty() {
         return Err("Add your provider API key in Settings.".into());
     }

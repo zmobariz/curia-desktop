@@ -1,6 +1,6 @@
 [package]
 name = "curia-desktop"
-version = "0.1.0"
+version = "0.1.1"
 description = "Curia — a portable desktop client for the UK i.AI Lex legislation API"
 authors = ["The Curia maintainers"]
 edition = "2021"
@@ -18,6 +18,8 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 open = "5"
 # Swaps the running portable .exe in place during a forced self-update.
 self-replace = "1"
+# Stores the user's LLM API key in Windows Credential Manager instead of a file.
+keyring = { version = "3", features = ["windows-native"] }
 
 [features]
 # By default Tauri uses a custom protocol for assets; nothing extra needed here.

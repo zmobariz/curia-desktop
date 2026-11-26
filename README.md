@@ -141,9 +141,12 @@ Existing installs will pick it up and force-update on their next launch.
 
 ## Notes & roadmap
 
-- API keys currently sit in the per-user settings file in plain text — fine for a
-  single-user device; moving them to the Windows Credential Manager (OS keyring)
-  is a planned hardening step.
+- Your AI provider API key is stored in Windows Credential Manager, not in the
+  settings file, and is never sent back to the UI. Keys saved by v0.1.0 in plain
+  text are migrated automatically on first launch of v0.1.1.
+- "Open on legislation.gov.uk" links only open `https://` legislation.gov.uk
+  (and ollama.com) addresses; Lex and AI provider URLs must use `https://`
+  (plain `http://` is allowed only for localhost, e.g. Ollama).
 - Cross-signing the `.exe` (code-signing certificate) will avoid SmartScreen
   warnings on first run; optional for internal distribution.
 - Possible follow-ups: amendments & explanatory-notes tabs (endpoints already

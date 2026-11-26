@@ -38,14 +38,18 @@ async fn check_and_force_update(app: AppHandle) -> Result<(), Box<dyn std::error
         // Write the verified bytes to a temp file, then atomically replace the
         // currently running portable exe with it (handles the Windows
         // can't-overwrite-a-running-exe rename dance).
-        let mut tmp = std::env::temp_dir();
-        tmp.push("curia-update.exe");
+        // Stage next to the running exe (same volume, so the swap is a rename)
+        // under a per-process name, rather than a fixed name in %TEMP% that
+        // another process could pre-create or race.
+        let current = std::env::current_exe()?;
+        let mut tmp = current.clone();
+        tmp.set_file_name(format!(".curia-update-{}.exe", std::process::id()));
         std::fs::write(&tmp, &bytes)?;
-        self_replace::self_replace(&tmp)?;
+        let swapped = self_replace::self_replace(&tmp);
         let _ = std::fs::remove_file(&tmp);
+        swapped?;
 
         // Relaunch the now-updated exe and exit this (old) process.
-        let current = std::env::current_exe()?;
         std::process::Command::new(current).spawn()?;
         app.exit(0);
     }
@@ -54,7 +58,22 @@ async fn check_and_force_update(app: AppHandle) -> Result<(), Box<dyn std::error
 
 #[tauri::command]
 fn get_settings(app: AppHandle) -> Settings {
-    settings::load(&app)
+    settings::load_public(&app)
+}
+
+#[tauri::command]
+fn clear_api_key() -> Result<(), String> {
+    settings::clear_key()
+}
+
+/// Settings for a Lex call, refusing a non-https base URL (e.g. one left in an
+/// older settings file) so research queries are never sent in clear text.
+fn lex_settings(app: &AppHandle) -> Result<Settings, String> {
+    let s = settings::load(app);
+    if !settings::is_safe_endpoint(&s.lex_base_url) {
+        return Err("Lex base URL must use https:// — fix it in Settings.".into());
+    }
+    Ok(s)
 }
 
 #[tauri::command]
@@ -64,7 +83,7 @@ fn save_settings(app: AppHandle, settings: Settings) -> Result<(), String> {
 
 #[tauri::command]
 async fn lex_search(app: AppHandle, params: lex::SearchParams) -> Result<serde_json::Value, String> {
-    let s = settings::load(&app);
+    let s = lex_settings(&app)?;
     lex::search(&s.lex_base_url, &s.contact, &params).await
 }
 
@@ -74,13 +93,13 @@ async fn lex_full_text(
     legislation_id: String,
     include_schedules: bool,
 ) -> Result<serde_json::Value, String> {
-    let s = settings::load(&app);
+    let s = lex_settings(&app)?;
     lex::full_text(&s.lex_base_url, &s.contact, &legislation_id, include_schedules).await
 }
 
 #[tauri::command]
 async fn lex_health(app: AppHandle) -> Result<serde_json::Value, String> {
-    let s = settings::load(&app);
+    let s = lex_settings(&app)?;
     lex::health(&s.lex_base_url, &s.contact).await
 }
 
@@ -90,7 +109,7 @@ async fn lex_amendments(
     legislation_id: String,
     search_amended: bool,
 ) -> Result<serde_json::Value, String> {
-    let s = settings::load(&app);
+    let s = lex_settings(&app)?;
     lex::amendments(&s.lex_base_url, &s.contact, &legislation_id, search_amended).await
 }
 
@@ -99,7 +118,7 @@ async fn lex_explanatory_notes(
     app: AppHandle,
     legislation_id: String,
 ) -> Result<serde_json::Value, String> {
-    let s = settings::load(&app);
+    let s = lex_settings(&app)?;
     lex::explanatory_notes(&s.lex_base_url, &s.contact, &legislation_id).await
 }
 
@@ -109,10 +128,32 @@ async fn llm_explain(app: AppHandle, question: String, context: String) -> Resul
     llm::explain(&s, &question, &context).await
 }
 
+/// Links the UI may open in the user's browser.
+const ALLOWED_OPEN_PREFIXES: &[&str] = &[
+    "https://www.legislation.gov.uk/",
+    "https://legislation.gov.uk/",
+    "https://ollama.com/",
+];
+
 /// Open an external URL (e.g. legislation.gov.uk) in the user's default browser.
+/// URLs can come from Lex API responses, so they are untrusted: `open::that`
+/// hands its argument to the Windows shell, which would happily launch a local
+/// program or file:// path. Only https links to allow-listed hosts are opened.
 #[tauri::command]
 fn open_url(url: String) -> Result<(), String> {
-    open::that(url).map_err(|e| e.to_string())
+    let mut u = url.trim().to_string();
+    // Lex sometimes returns http:// legislation.gov.uk links; upgrade them.
+    for host in ["http://www.legislation.gov.uk/", "http://legislation.gov.uk/"] {
+        if u.starts_with(host) {
+            u = format!("https://{}", &u["http://".len()..]);
+        }
+    }
+    if u.chars().any(|c| c.is_control() || c.is_whitespace())
+        || !ALLOWED_OPEN_PREFIXES.iter().any(|p| u.starts_with(p))
+    {
+        return Err("Refused to open a link outside legislation.gov.uk.".into());
+    }
+    open::that(u).map_err(|e| e.to_string())
 }
 
 fn main() {
@@ -136,6 +177,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             get_settings,
             save_settings,
+            clear_api_key,
             lex_search,
             lex_full_text,
             lex_health,
