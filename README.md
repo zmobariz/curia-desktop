@@ -1,42 +1,57 @@
 # Curia Desktop
 
-A small, **portable Windows desktop app** for searching **UK legislation** through
-the UK Government's [i.AI **Lex**](https://lex.lab.i.ai.gov.uk) API — built for
-people on **locked-down machines who can't install software or use admin rights**.
+A small, **portable Windows desktop app** for researching **UK immigration law** (and UK law
+generally) — built for people on **locked-down machines who can't install software or use
+admin rights**.
 
-- **No admin, no installer needed.** Ships as a single `.exe` that runs from the
-  user's own folder. Uses the **WebView2** runtime that's already on Windows 10/11.
-- **No subscription, no bundled AI.** Plain search returns official results with a
-  link to `legislation.gov.uk` for every item — verify at the source.
-- **Optional AI "Explain"** uses **your own** provider key (OpenAI, Anthropic,
-  any OpenAI-compatible endpoint) or a **free local model via [Ollama](https://ollama.com)**
-  (which also installs without admin). Keys are stored only on your PC.
+- **Assistant** — ask a research question; Curia searches the Immigration Rules, Home Office
+  guidance, UK legislation and case law live, then answers with **numbered citations that link
+  to the exact paragraph** of each source. Follow-up questions keep the context. Uses **your
+  own** AI key (Anthropic, OpenAI, any OpenAI-compatible endpoint or local Ollama).
+- **Guidance & Rules** — search Home Office / UKVI caseworker guidance and every Part and
+  Appendix of the Immigration Rules; read the passages relevant to your query, with deep links.
+- **Case law** — relevance-ranked search of The National Archives' Find Case Law (Upper Tribunal
+  IAC, Court of Appeal, Supreme Court, Admin Court, Privy Council by default); read the relevant
+  paragraphs of any judgment.
+- **Legislation** — Acts and SIs via the i.AI Lex API, with full text, amendments and
+  explanatory notes.
+- **Updates** — the latest Home Office/UKVI guidance changes on GOV.UK with their change notes;
+  **watch** any guidance or Rules section and Curia keeps a snapshot and shows a tracked-changes
+  diff when it changes, with an optional AI summary.
+- **No admin, no installer, no subscription, no server.** Single `.exe`; uses the WebView2
+  runtime already on Windows 10/11. Everything is fetched live over HTTPS.
 
-> Research aid, not legal advice. Lex is an **experimental/beta** government
-> service and is rate-limited; the app degrades gracefully if it's unavailable.
-> Don't enter client-identifying or sensitive personal data.
+> Research aid, not legal advice. Sources are experimental/beta services and may be
+> rate-limited; always open and verify the linked primary source. Don't enter
+> client-identifying or sensitive personal data.
 
 ## What it talks to
 
-The app calls the Lex REST API directly over HTTPS — no Docker, no Matrix, no
-server to run. Endpoints used (no authentication required):
+| Source | Used for | Licence |
+|---|---|---|
+| [i.AI Lex](https://lex.lab.i.ai.gov.uk) | Legislation search, section search, full text, amendments, explanatory notes | OGL |
+| GOV.UK Search & Content APIs | Immigration Rules, Home Office/UKVI guidance, change notes | OGL v3.0 |
+| [Find Case Law](https://caselaw.nationalarchives.gov.uk) | Judgment search and text | Open Justice Licence |
+| Your AI provider (optional) | Assistant answers, Explain, change summaries | Your provider's terms |
 
-| Action | Endpoint |
-|---|---|
-| Search Acts & SIs | `POST /legislation/search` |
-| Full text of an item | `POST /legislation/text` |
-| Service status | `GET /healthcheck` |
-
-Case law is **not** currently served by the hosted Lex API, so this app focuses
-on legislation; case-law search remains available via the repo's `caselaw-mcp`.
+Curia only runs the searches you (or your Assistant) ask for and reads judgments one at a
+time. It does **no bulk download or computational analysis** of Find Case Law, which would
+need a separate (free) licence from The National Archives. Historical versions of the
+Immigration Rules are not available from any official API, so Curia shows current text plus
+GOV.UK change notes and diffs of documents you watch.
 
 ## Layout
 
 ```
   ui/                 static frontend (HTML/CSS/JS — no bundler, no Node needed)
   src-tauri/          Rust (Tauri v2) backend
-    src/lex.rs        Lex API client
-    src/llm.rs        bring-your-own-key LLM client (OpenAI-compatible + Anthropic)
+    src/lex.rs        Lex API client (legislation)
+    src/govuk.rs      GOV.UK Search/Content client (guidance, Immigration Rules)
+    src/caselaw.rs    Find Case Law client (Atom search, LegalDocML judgments)
+    src/passages.rs   picks relevant passages (BM25) with deep-link anchors
+    src/assistant.rs  tool-using research assistant with numbered citations
+    src/tracker.rs    Updates tracker: watch list, snapshots, diffs
+    src/llm.rs        bring-your-own-key LLM client (Anthropic + OpenAI-compatible, tool calling)
     src/settings.rs   per-user settings (JSON in %APPDATA%)
     src/main.rs       Tauri commands + wiring
 ```

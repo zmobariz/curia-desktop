@@ -1,6 +1,6 @@
 [package]
 name = "curia-desktop"
-version = "0.1.1"
+version = "0.2.0"
 description = "Curia — a portable desktop client for the UK i.AI Lex legislation API"
 authors = ["The Curia maintainers"]
 edition = "2021"
@@ -20,6 +20,13 @@ open = "5"
 self-replace = "1"
 # Stores the user's LLM API key in Windows Credential Manager instead of a file.
 keyring = { version = "3", features = ["windows-native"] }
+# HTML parsing for GOV.UK guidance / Immigration Rules pages.
+scraper = "0.29"
+# Atom feed + judgment XML from Find Case Law.
+roxmltree = "0.21"
+# Text diffs for the Updates tracker.
+similar = "3"
+futures = "0.3"
 
 [features]
 # By default Tauri uses a custom protocol for assets; nothing extra needed here.

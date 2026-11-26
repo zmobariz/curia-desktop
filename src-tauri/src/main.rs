@@ -1,9 +1,15 @@
 // Hide the console window on Windows release builds.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod assistant;
+mod caselaw;
+mod govuk;
 mod lex;
 mod llm;
+mod net;
+mod passages;
 mod settings;
+mod tracker;
 
 use settings::Settings;
 use tauri::{AppHandle, Emitter};
@@ -128,10 +134,123 @@ async fn llm_explain(app: AppHandle, question: String, context: String) -> Resul
     llm::explain(&s, &question, &context).await
 }
 
+// ---------- Guidance & Immigration Rules (GOV.UK) ----------
+
+#[derive(serde::Serialize)]
+struct ReadResult<T: serde::Serialize> {
+    doc: T,
+    passages: Vec<passages::Passage>,
+}
+
+/// With an empty query, return the whole document as passages (reader view).
+fn all_or_best(blocks: &[passages::Block], query: &str, k: usize) -> Vec<passages::Passage> {
+    if query.trim().is_empty() {
+        blocks
+            .iter()
+            .take(600)
+            .map(|b| passages::Passage {
+                heading: b.heading.clone(),
+                text: b.text.clone(),
+                url: match &b.anchor {
+                    Some(a) => format!("{}#{}", b.url, a),
+                    None => b.url.clone(),
+                },
+                score: 0.0,
+            })
+            .collect()
+    } else {
+        passages::best(blocks, query, k, 12000)
+    }
+}
+
+#[tauri::command]
+async fn guidance_search(app: AppHandle, query: String, scope: String) -> Result<Vec<govuk::Hit>, String> {
+    let s = settings::load(&app);
+    govuk::search(&net::client(&s.contact)?, &query, &scope, 25).await
+}
+
+#[tauri::command]
+async fn guidance_read(app: AppHandle, path: String, query: String) -> Result<ReadResult<govuk::Doc>, String> {
+    let s = settings::load(&app);
+    let doc = govuk::fetch(&net::client(&s.contact)?, &path).await?;
+    let passages = all_or_best(&doc.blocks, &query, 8);
+    Ok(ReadResult { doc, passages })
+}
+
+// ---------- Case law (Find Case Law) ----------
+
+#[tauri::command]
+async fn caselaw_search(app: AppHandle, query: String, courts: String, page: u32) -> Result<Vec<caselaw::Case>, String> {
+    let s = settings::load(&app);
+    caselaw::search(&net::client(&s.contact)?, &query, &courts, page, 20).await
+}
+
+#[tauri::command]
+async fn caselaw_read(app: AppHandle, uri: String, query: String) -> Result<ReadResult<caselaw::Judgment>, String> {
+    let s = settings::load(&app);
+    let j = caselaw::fetch(&net::client(&s.contact)?, &uri).await?;
+    let passages = all_or_best(&j.blocks, &query, 8);
+    Ok(ReadResult { doc: j, passages })
+}
+
+// ---------- Assistant ----------
+
+#[tauri::command]
+async fn assistant_ask(app: AppHandle, req: assistant::AskRequest) -> Result<assistant::AskResponse, String> {
+    let s = lex_settings(&app)?;
+    assistant::ask(&s, req).await
+}
+
+// ---------- Updates tracker ----------
+
+#[tauri::command]
+fn tracker_state(app: AppHandle) -> tracker::State {
+    tracker::load(&app)
+}
+
+#[tauri::command]
+async fn tracker_recent(app: AppHandle, count: u32) -> Result<Vec<govuk::Hit>, String> {
+    let s = settings::load(&app);
+    govuk::recent(&net::client(&s.contact)?, count).await
+}
+
+#[tauri::command]
+async fn tracker_history(app: AppHandle, path: String) -> Result<Vec<govuk::Change>, String> {
+    let s = settings::load(&app);
+    Ok(govuk::meta(&net::client(&s.contact)?, &path).await?.2)
+}
+
+#[tauri::command]
+async fn tracker_watch(app: AppHandle, path: String) -> Result<tracker::State, String> {
+    let s = settings::load(&app);
+    tracker::watch(&app, &s, &path).await
+}
+
+#[tauri::command]
+fn tracker_unwatch(app: AppHandle, path: String) -> Result<tracker::State, String> {
+    tracker::unwatch(&app, &path)
+}
+
+#[tauri::command]
+async fn tracker_check(app: AppHandle, now: String) -> Result<tracker::CheckResult, String> {
+    let s = settings::load(&app);
+    tracker::check(&app, &s, &now).await
+}
+
+#[tauri::command]
+async fn tracker_summarise(app: AppHandle, id: String) -> Result<String, String> {
+    let s = settings::load(&app);
+    tracker::summarise(&app, &s, &id).await
+}
+
 /// Links the UI may open in the user's browser.
 const ALLOWED_OPEN_PREFIXES: &[&str] = &[
     "https://www.legislation.gov.uk/",
     "https://legislation.gov.uk/",
+    "https://www.gov.uk/",
+    "https://assets.publishing.service.gov.uk/",
+    "https://caselaw.nationalarchives.gov.uk/",
+    "https://assets.caselaw.nationalarchives.gov.uk/",
     "https://ollama.com/",
 ];
 
@@ -151,7 +270,7 @@ fn open_url(url: String) -> Result<(), String> {
     if u.chars().any(|c| c.is_control() || c.is_whitespace())
         || !ALLOWED_OPEN_PREFIXES.iter().any(|p| u.starts_with(p))
     {
-        return Err("Refused to open a link outside legislation.gov.uk.".into());
+        return Err("Refused to open a link outside the official sources Curia uses.".into());
     }
     open::that(u).map_err(|e| e.to_string())
 }
@@ -184,7 +303,19 @@ fn main() {
             lex_amendments,
             lex_explanatory_notes,
             llm_explain,
-            open_url
+            open_url,
+            guidance_search,
+            guidance_read,
+            caselaw_search,
+            caselaw_read,
+            assistant_ask,
+            tracker_state,
+            tracker_recent,
+            tracker_history,
+            tracker_watch,
+            tracker_unwatch,
+            tracker_check,
+            tracker_summarise
         ])
         .run(tauri::generate_context!())
         .expect("error while running Curia desktop");

@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Curia",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "identifier": "org.curia.desktop",
   "build": {
     "frontendDist": "../ui"
@@ -11,7 +11,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Curia \u2014 UK legislation research",
+        "title": "Curia \u2014 UK immigration & legislation research",
         "width": 1120,
         "height": 820,
         "minWidth": 720,
@@ -38,7 +38,7 @@
     "createUpdaterArtifacts": false,
     "targets": [],
     "publisher": "The Curia maintainers",
-    "shortDescription": "Search UK legislation via the i.AI Lex API.",
+    "shortDescription": "UK immigration and legislation research with cited answers.",
     "longDescription": "A portable desktop client for searching UK legislation through the UK Government's i.AI Lex API. No admin rights required. Optional AI explanations using your own API key.",
     "icon": [
       "icons/32x32.png",

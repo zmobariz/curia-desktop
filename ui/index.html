@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Curia — UK legislation research</title>
+    <title>Curia — UK immigration &amp; legislation research</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -12,7 +12,7 @@
         <span class="mark"></span>
         <div>
           <h1>Curia</h1>
-          <p class="tagline">UK legislation research · powered by the i.AI <strong>Lex</strong> API</p>
+          <p class="tagline">UK immigration &amp; legislation research · <strong>Lex</strong> · GOV.UK · Find Case Law</p>
         </div>
       </div>
       <div class="topbar-actions">
@@ -21,14 +21,51 @@
       </div>
     </header>
 
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-tab="assistant" type="button">Assistant</button>
+      <button class="tab" data-tab="search" type="button">Legislation</button>
+      <button class="tab" data-tab="guidance" type="button">Guidance &amp; Rules</button>
+      <button class="tab" data-tab="caselaw" type="button">Case law</button>
+      <button class="tab" data-tab="updates" type="button">Updates <span id="updates-badge" class="tab-badge" hidden></span></button>
+    </nav>
+
     <div class="disclaimer">
       Research aid, not legal advice. Always open and verify the linked primary source.
       Don’t enter client-identifying or sensitive personal data.
     </div>
 
     <main class="content">
+      <!-- ASSISTANT VIEW -->
+      <section id="view-assistant">
+        <div id="ai-off" class="empty" hidden>
+          The Assistant uses <b>your own</b> AI provider key to search the Immigration Rules, Home Office guidance,
+          legislation and case law and answer with citations. Open <b>Settings</b>, enable AI and add a key
+          (Anthropic or OpenAI recommended — small local models often struggle with multi-step research).
+          The other tabs work without AI.
+        </div>
+        <div id="chat" class="chat"></div>
+        <div id="chat-empty" class="chat-empty">
+          <h2>Ask a research question</h2>
+          <p class="hint">Curia searches the Immigration Rules, Home Office guidance, UK legislation and case law live,
+            then answers with numbered citations linking to the exact paragraph. Try:</p>
+          <div class="examples">
+            <button class="btn btn-ghost example" type="button">How is “very significant obstacles to integration” assessed for private life applications?</button>
+            <button class="btn btn-ghost example" type="button">What weight is given to a private life formed while immigration status was precarious?</button>
+            <button class="btn btn-ghost example" type="button">Can a self-employed sponsor rely on cash savings to meet the Appendix FM financial requirement?</button>
+            <button class="btn btn-ghost example" type="button">When can the Home Office deprive someone of British citizenship, and how is it appealed?</button>
+          </div>
+        </div>
+        <form id="ask-form" class="ask">
+          <textarea id="ask-q" rows="2" placeholder="Ask about immigration law, rules, guidance or case law… (Enter to send, Shift+Enter for a new line)"></textarea>
+          <div class="ask-actions">
+            <button class="btn btn-primary" id="ask-btn" type="submit">Ask</button>
+            <button class="btn btn-ghost" id="new-chat" type="button">New conversation</button>
+          </div>
+        </form>
+      </section>
+
       <!-- SEARCH VIEW -->
-      <section id="view-search">
+      <section id="view-search" hidden>
         <form id="search-form" class="search">
           <input id="q" type="text" placeholder="Search UK legislation (e.g. “right to rent immigration”, “asylum support”)" autocomplete="off" />
           <button class="btn btn-primary" type="submit">Search</button>
@@ -61,12 +98,80 @@
         </div>
       </section>
 
+      <!-- GUIDANCE & RULES VIEW -->
+      <section id="view-guidance" hidden>
+        <form id="g-form" class="search">
+          <input id="g-q" type="text" placeholder="Search Home Office guidance and the Immigration Rules (e.g. “appendix FM financial requirement”)" autocomplete="off" />
+          <button class="btn btn-primary" type="submit">Search</button>
+        </form>
+        <div class="filters">
+          <label>Scope
+            <select id="g-scope">
+              <option value="immigration">Immigration Rules + Home Office/UKVI guidance</option>
+              <option value="rules">Immigration Rules only</option>
+              <option value="all">All GOV.UK guidance</option>
+            </select>
+          </label>
+        </div>
+        <div id="g-meta" class="meta" hidden></div>
+        <div id="g-results" class="results"></div>
+      </section>
+
+      <!-- CASE LAW VIEW -->
+      <section id="view-caselaw" hidden>
+        <form id="c-form" class="search">
+          <input id="c-q" type="text" placeholder="Search judgments (every word must appear — e.g. “117B little weight precarious”)" autocomplete="off" />
+          <button class="btn btn-primary" type="submit">Search</button>
+        </form>
+        <div class="filters">
+          <label>Courts
+            <select id="c-courts">
+              <option value="immigration">Immigration (UT IAC, CA, UKSC, Admin Court, PC)</option>
+              <option value="ukut/iac">Upper Tribunal (IAC) only</option>
+              <option value="ewca/civ">Court of Appeal (Civil)</option>
+              <option value="uksc">Supreme Court</option>
+              <option value="ewhc/admin">Administrative Court</option>
+              <option value="all">All courts and tribunals</option>
+            </select>
+          </label>
+        </div>
+        <div id="c-meta" class="meta" hidden></div>
+        <div id="c-results" class="results"></div>
+        <div id="c-foot" class="results-foot" hidden>
+          <button id="c-more" class="btn btn-ghost" type="button">Load more</button>
+        </div>
+        <p class="hint source-note">Judgments from The National Archives’ Find Case Law, re-used under the Open Justice Licence.</p>
+      </section>
+
+      <!-- UPDATES VIEW -->
+      <section id="view-updates" hidden>
+        <div class="updates-head">
+          <div>
+            <h2>Updates</h2>
+            <p class="hint">Watch guidance or Immigration Rules sections and see exactly what changed. Add documents with
+              <b>Watch</b> from the list below or the Guidance &amp; Rules tab.</p>
+          </div>
+          <div class="updates-actions">
+            <button id="u-check" class="btn btn-primary" type="button">Check watched now</button>
+            <span id="u-last" class="hint"></span>
+          </div>
+        </div>
+        <h3 class="section-title">Detected changes</h3>
+        <div id="u-changes" class="results"></div>
+        <h3 class="section-title">Watched documents</h3>
+        <div id="u-watched" class="results"></div>
+        <h3 class="section-title">Latest Home Office &amp; UKVI guidance updates on GOV.UK</h3>
+        <div id="u-recent" class="results"></div>
+      </section>
+
       <!-- SETTINGS VIEW -->
       <section id="view-settings" hidden>
         <h2>Settings</h2>
 
         <fieldset>
-          <legend>Lex API</legend>
+          <legend>Sources</legend>
+          <p class="hint">Legislation: i.AI Lex. Guidance &amp; Immigration Rules: GOV.UK (Open Government Licence).
+            Case law: The National Archives’ Find Case Law (Open Justice Licence). All fetched live over HTTPS — nothing is uploaded.</p>
           <label class="row">Lex base URL
             <input id="s-lex-url" type="text" />
           </label>
@@ -76,10 +181,10 @@
         </fieldset>
 
         <fieldset>
-          <legend>AI “Explain” (optional — bring your own key)</legend>
-          <label class="check"><input id="s-llm-enabled" type="checkbox" /> Enable AI explanations</label>
+          <legend>AI Assistant &amp; summaries (optional — bring your own key)</legend>
+          <label class="check"><input id="s-llm-enabled" type="checkbox" /> Enable AI (Assistant, Explain, change summaries)</label>
           <p class="hint">
-            Curia ships no AI and needs no subscription. To use “Explain”, paste your own provider key.
+            Curia ships no AI and needs no subscription. To use the Assistant, paste your own provider key — each question costs a few pence with Anthropic or OpenAI.
             Keys are stored only on this PC, in Windows Credential Manager. For a no-cost option, run a local model with
             <a href="#" data-ext="https://ollama.com">Ollama</a> (installs without admin) and choose “Ollama”.
           </p>
@@ -95,7 +200,7 @@
             <input id="s-base-url" type="text" placeholder="https://openrouter.ai/api/v1" />
           </label>
           <label class="row">Model
-            <input id="s-model" type="text" placeholder="e.g. gpt-4o-mini / claude-opus-4-8 / llama3.1" />
+            <input id="s-model" type="text" placeholder="Blank = claude-sonnet-5-5 (Anthropic) or gpt-4o-mini (OpenAI)" />
           </label>
           <label class="row" id="row-apikey">API key
             <input id="s-api-key" type="password" placeholder="sk-…" autocomplete="off" />
@@ -106,7 +211,7 @@
 
         <div class="settings-actions">
           <button id="save-settings" class="btn btn-primary" type="button">Save</button>
-          <button id="close-settings" class="btn btn-ghost" type="button">Back to search</button>
+          <button id="close-settings" class="btn btn-ghost" type="button">Back</button>
           <span id="settings-saved" class="saved" hidden>Saved ✓</span>
         </div>
       </section>

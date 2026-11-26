@@ -22,6 +22,15 @@ any client matter.
 - **At rest:** secrets in `chmod 600` env files (gitignored); the Matrix E2EE crypto store
   kept out of version control.
 
+### Curia Desktop (this app)
+- **Desktop → source APIs (HTTPS):** i.AI Lex, GOV.UK Search/Content APIs, The National Archives
+  Find Case Law. They receive only search terms and document references.
+- **Desktop → your model provider (only if AI is enabled):** the question, earlier turns of the
+  current conversation and retrieved source extracts. Nothing is sent when AI is off.
+- **At rest on the PC:** settings in `%APPDATA%\org.curia.desktop\settings.json`; the API key
+  in Windows Credential Manager; Updates-tracker snapshots of public GOV.UK guidance in
+  `%APPDATA%\org.curia.desktop\tracker\`. Conversations are not saved to disk.
+
 ## Special-category data — control it at the input
 Immigration/asylum subject matter (asylum, trafficking, torture, children) is special-category.
 The **primary, proportionate control is not to input client personal data into the assistant

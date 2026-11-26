@@ -35,15 +35,7 @@ fn default_true() -> bool {
 }
 
 fn client(contact: &str) -> Result<reqwest::Client, String> {
-    let ua = if contact.trim().is_empty() {
-        "Curia-Desktop/0.1 (+https://github.com/zmobariz/Curia)".to_string()
-    } else {
-        format!("Curia-Desktop/0.1 ({})", contact.trim())
-    };
-    reqwest::Client::builder()
-        .user_agent(ua)
-        .build()
-        .map_err(|e| e.to_string())
+    crate::net::client(contact)
 }
 
 fn base(url: &str) -> &str {
@@ -183,4 +175,27 @@ fn truncate(s: &str, n: usize) -> String {
     } else {
         t
     }
+}
+
+/// Section-level semantic search (e.g. finds s.117B NIAA 2002 for a question
+/// about "little weight to private life"). Returns a JSON array of sections.
+pub async fn section_search(
+    base_url: &str,
+    contact: &str,
+    query: &str,
+    legislation_id: Option<&str>,
+    size: u32,
+) -> Result<Value, String> {
+    let url = format!("{}/legislation/section/search", base(base_url));
+    let mut body = serde_json::json!({ "query": query, "size": size.clamp(1, 20) });
+    if let Some(id) = legislation_id.filter(|s| !s.trim().is_empty()) {
+        body["legislation_id"] = id.trim().into();
+    }
+    let resp = client(contact)?
+        .post(&url)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    parse(resp).await
 }
